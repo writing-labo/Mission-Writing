@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MISSION WRITING</title>
+<style>
+*{box-sizing:border-box} body{margin:0;background:#f4f6fa;color:#20242b;font-family:Arial,"Noto Sans JP",sans-serif}
+.wrap{max-width:950px;margin:auto;padding:24px 16px 50px}
+h1{text-align:center;letter-spacing:2px;margin:4px 0;font-family:"Bradley Hand","Bradley Hand ITC","Comic Sans MS",cursive;font-size:42px}.sub{text-align:center;color:#666;margin-bottom:20px}
+.card{background:#fff;border-radius:14px;padding:22px;margin:14px 0;box-shadow:0 2px 12px #0001}
+.timer{font-size:42px;font-weight:bold;text-align:center;margin:5px}.timer.warning{color:#c62828}
+textarea{width:100%;height:260px;border:2px solid #d7dce5;border-radius:10px;padding:15px;font-size:19px;line-height:1.7;resize:vertical}
+button{border:0;border-radius:9px;padding:12px 22px;font-size:16px;background:#315fb5;color:#fff;cursor:pointer;margin-top:12px}
+button.gray{background:#777;margin-left:7px}
+button:disabled{opacity:.55;cursor:not-allowed}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px}
+.rule{background:#f7f8fb;border-radius:8px;padding:9px 12px}.points{font-weight:bold}
+.score{text-align:center;font-size:48px;font-weight:bold;margin:5px}.label{text-align:center;color:#666}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:9px;margin-top:18px}
+.item{padding:12px;border-radius:9px;background:#f7f8fb;border:1px solid #e2e5eb}
+.ok{color:#16833b}.ng{color:#c62828}.none{color:#777}
+.note{font-size:13px;color:#666;line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>MISSION WRITING</h1>
+<div class="sub">3分間で、習った文法をできるだけ正しく使おう。</div>
+
+<div class="card">
+<h2>MISSION</h2>
+<p><strong>3分間で、できるだけ多くの文法項目を正しく使って英作文を書きなさい。</strong></p>
+<div class="rules">
+<div class="rule">第1～4文型 <span class="points">+0.1</span></div>
+<div class="rule">第5文型 <span class="points">+0.2</span></div>
+<div class="rule">S V 接続詞 S V <span class="points">+0.2</span></div>
+<div class="rule">助動詞 <span class="points">+0.2</span></div>
+<div class="rule">完了形 <span class="points">+0.2</span></div>
+<div class="rule">受動態 <span class="points">+0.3</span></div>
+<div class="rule">不定詞 <span class="points">+0.3</span></div>
+<div class="rule">動名詞 <span class="points">+0.3</span></div>
+<div class="rule">分詞 <span class="points">+0.5</span></div>
+<div class="rule">分詞構文 <span class="points">+1.0</span></div>
+</div>
+<p class="note">※ 各項目は、正しく使えていれば加点。誤用があると、その項目の点数を減点します。同じ項目を複数回使った場合は、試行版では「正しい使用が1つ以上」で加点し、「明らかな誤用」がある場合は減点候補として表示します。</p>
+</div>
+
+<div class="card">
+<label for="student">名前（任意）</label><br><input id="student" type="text" placeholder="名前を入力" style="width:100%;padding:11px;margin:8px 0 14px;border:1px solid #d7dce5;border-radius:9px;font-size:16px">
+<div id="timer" class="timer">3:00</div>
+<textarea id="answer" placeholder="ここに自由に英作文を書いてください。&#10;&#10;STARTを押すと3分のカウントダウンが始まります。"></textarea>
+<br>
+<button id="start" onclick="startTimer()">START</button>
+<button id="submit" onclick="finish()" disabled>採点する</button>
+<button class="gray" onclick="resetAll()">リセット</button>
+</div>
+
+<div id="result" class="card" style="display:none">
+<h2>RESULT</h2><div id="studentResult" class="note" style="text-align:center"></div>
+<div id="score" class="score">0.0</div>
+<div class="label">POINTS</div>
+<div id="details" class="grid"></div>
+<button class="gray" onclick="window.print()">結果を印刷</button>
+<p class="note">※ この版は、外部サービスへの登録なしでブラウザ上で動作する本番用の無料版です。特に文型・分詞・分詞構文などは、実際の英文の意味まで完全には判定できません。本番版ではAIによる文法解析に置き換えることを想定しています。</p>
+</div>
+</div>
+
+<script>
+let seconds=180, timerId=null, started=false, finished=false;
+
+function startTimer(){
+ if(started)return;
+ started=true; document.getElementById('start').disabled=true;
+ document.getElementById('submit').disabled=false;
+ updateTimer();
+ timerId=setInterval(()=>{seconds--;updateTimer();if(seconds<=0){clearInterval(timerId);finish(true)}},1000);
+ document.getElementById('answer').focus();
+}
+function updateTimer(){
+ const m=Math.floor(seconds/60),s=String(seconds%60).padStart(2,'0');
+ const el=document.getElementById('timer');el.textContent=`${m}:${s}`;
+ el.classList.toggle('warning',seconds<=30);
+}
+function norm(x){return x.toLowerCase().replace(/[.,!?;:()"']/g,' ').replace(/\s+/g,' ').trim()}
+function add(arr,name,points,status,detail){arr.push({name,points,status,detail})}
+
+function grade(){
+ const raw=document.getElementById('answer').value.trim(), s=norm(raw);
+ const r=[]; let total=0;
+
+ function addCount(arr,name,points,correct,errors,detail){
+   const net=correct-errors;
+   const value=net*points;
+   let status=net>0?"ok":errors>0?"ng":"none";
+   if(correct===0 && errors>0) status="ng";
+   const detailText=`正しい使用 ${correct}回 × ${points.toFixed(1)} = +${(correct*points).toFixed(1)}`+
+     (errors?` ／ 誤用 ${errors}回 × ${points.toFixed(1)} = −${(errors*points).toFixed(1)}`:"");
+   arr.push({name,points,status,detail:detailText+(detail?"<br>"+detail:"")});
+   total+=value;
+ }
+
+ // 文型
+ const svocMatches=s.match(/\b(make|made|keep|kept|find|found|call|called|consider|considered|name|named)\s+\w+\s+(happy|sad|angry|useful|easy|difficult|safe|quiet|beautiful|to\s+\w+|\w+ing)\b/g)||[];
+ const svocCount=svocMatches.length;
+ const finiteMatches=s.match(/\b(am|is|are|was|were|have|has|had|do|does|did|go|goes|went|like|likes|liked|want|wants|wanted|need|needs|needed|know|knew|think|thought|see|saw|say|said|use|used|live|lived|work|worked|study|studied|play|played|read|write|wrote|eat|ate|run|ran|walk|walked|help|helped|take|took|give|gave|tell|told|buy|bought|find|found|keep|kept|call|called)\b/g)||[];
+ const basicCount=Math.max(0,finiteMatches.length-svocCount);
+ addCount(r,"第1～4文型",0.1,basicCount,0,"基本文型を自動判定");
+
+ addCount(r,"第5文型",0.2,svocCount,0,"SVOCらしい形を自動判定");
+
+ // S V 接続詞 S V
+ const conjunctions=s.match(/\b(because|although|though|if|when|while|before|after|since|so|but|and)\b/g)||[];
+ let clauseCount=0;
+ for(const c of conjunctions){
+   const pos=s.indexOf(c);
+   const before=s.slice(0,pos), after=s.slice(pos+c.length);
+   if(/\b(i|you|he|she|we|they|it|people|students|this|that)\b\s+\w+/.test(before) &&
+      /\b(i|you|he|she|we|they|it|people|students|this|that)\b\s+\w+/.test(after)) clauseCount++;
+ }
+ addCount(r,"S V 接続詞 S V",0.2,clauseCount,0,"前後に節がある接続詞を検出");
+
+ // 助動詞
+ const modalCorrect=s.match(/\b(can|could|may|might|must|shall|should|will|would)\s+(?!to\b)\w+\b/g)||[];
+ const modalErrors=s.match(/\b(can|could|may|might|must|shall|should|will|would)\s+to\s+\w+\b/g)||[];
+ addCount(r,"助動詞",0.2,modalCorrect.length,modalErrors.length,"助動詞＋動詞原形を確認");
+
+ // 完了形
+ const perfectCorrect=s.match(/\b(have|has|had)\s+(?:not\s+)?(?:\w+ed|\w+en)\b/g)||[];
+ const perfectErrors=s.match(/\b(have|has|had)\s+(?:not\s+)?(?:\w+(?:s|ing))\b/g)||[];
+ addCount(r,"完了形",0.2,perfectCorrect.length,perfectErrors.length,"have/has/had＋過去分詞を確認");
+
+ // 受動態：be + 過去分詞
+ const passiveCorrect=s.match(/\b(am|is|are|was|were|be|been|being)\s+(?:not\s+)?(?:\w+ed|\w+en)\b/g)||[];
+ // 明らかな「be + 過去形」の誤用（went, saw, ate等）
+ const passiveErrors=s.match(/\b(am|is|are|was|were|be|been|being)\s+(?:went|saw|ate|did|came|ran|wrote|took|gave|made)\b/g)||[];
+ addCount(r,"受動態",0.3,passiveCorrect.length,passiveErrors.length,"be＋過去分詞を確認");
+
+ // 不定詞
+ const infinitiveCorrect=s.match(/\bto\s+(?!the\b|a\b|an\b|school\b|home\b|work\b|here\b|there\b)[a-z]{2,}\b/g)||[];
+ const infinitiveErrors=s.match(/\bto\s+(went|saw|was|were|did|ate|made|had|took|gave|came)\b/g)||[];
+ addCount(r,"不定詞",0.3,infinitiveCorrect.length,infinitiveErrors.length,"to＋動詞原形を確認");
+
+ // 動名詞
+ const gerundCorrect=[
+   ...(s.match(/\b(enjoy|avoid|finish|practice|mind|give up|stop|remember|forget|like|love|hate)\s+\w+ing\b/g)||[]),
+   ...(s.match(/\b(at|in|on|for|about|without|before|after)\s+\w+ing\b/g)||[]),
+   ...(s.match(/\b(am|is|are|was|were)\s+used\s+to\s+\w+ing\b/g)||[])
+ ];
+ const gerundErrors=s.match(/\b(enjoy|avoid|finish|practice|mind)\s+to\s+\w+\b/g)||[];
+ addCount(r,"動名詞",0.3,gerundCorrect.length,gerundErrors.length,"動名詞の用法を確認");
+
+ // 分詞：名詞を修飾する -ing / p.p.
+ const participleCorrect=[
+   ...(s.match(/\b\w+ing\s+(?:man|woman|person|people|boy|girl|student|students|car|cars|book|books|movie|movies|dog|dogs|problem|problems|way|ways|day|days|thing|things|place|places|story|stories|someone|something)\b/g)||[]),
+   ...(s.match(/\b(?:broken|written|spoken|known|used|seen|made|found|taken|given|built|lost|closed|opened|called|named|interested|excited|surprised|tired)\s+\w+/g)||[])
+ ];
+ // 「be + -ing」は進行形なので分詞から除外
+ const progressive=s.match(/\b(am|is|are|was|were)\s+\w+ing\b/g)||[];
+ const participleCount=Math.max(0,participleCorrect.length-progressive.length);
+ addCount(r,"分詞",0.5,participleCount,0,"名詞を修飾する分詞を確認");
+
+ // 分詞構文
+ const participleConstructionCorrect=[
+   ...(raw.match(/(?:^|[.!?]\s*)(?:[A-Za-z]+ing|Having\s+\w+(?:ed|en)|Being\s+\w+(?:ed|en))\s+[^,]+,/g)||[]),
+   ...(raw.match(/\b(?:After|Before|While)\s+\w+ing\s+[^,]+,/g)||[])
+ ];
+ // 主語の不一致が疑われる典型例を減点候補にする
+ const participleConstructionErrors=[
+   ...(raw.match(/(?:^|[.!?]\s*)[A-Za-z]+ing\s+[^,]+,\s*(?:there|it)\s+(?:is|was|are|were)\b/gi)||[])
+ ];
+ addCount(r,"分詞構文",1.0,participleConstructionCorrect.length,participleConstructionErrors.length,"分詞構文の形と明らかな主語不一致を確認");
+
+ return {total,r};
+}
+function finish(auto=false){
+ if(finished)return; finished=true; clearInterval(timerId);
+ const g=grade();
+ document.getElementById('score').textContent=g.total.toFixed(1); document.getElementById('studentResult').textContent=document.getElementById('student').value ? document.getElementById('student').value+' さんの結果' : '採点結果';
+ document.getElementById('details').innerHTML=g.r.map(x=>{
+   const mark=x.status==="ok"?`+${x.points.toFixed(1)} 点`:x.status==="ng"?`−${x.points.toFixed(1)} 点`:"0.0 点";
+   const cls=x.status==="ok"?"ok":x.status==="ng"?"ng":"none";
+   return `<div class="item"><strong>${x.name}</strong><br><span class="${cls}">${mark}</span><br><span class="note">${x.detail}</span></div>`;
+ }).join('');
+ document.getElementById('result').style.display='block';
+ document.getElementById('submit').disabled=true;
+ document.getElementById('result').scrollIntoView({behavior:'smooth'});
+ if(auto) alert("3分経過しました。自動的に採点しました。");
+}
+function resetAll(){
+ clearInterval(timerId);seconds=180;started=false;finished=false;updateTimer();
+ document.getElementById('answer').value='';
+ document.getElementById('start').disabled=false;
+ document.getElementById('submit').disabled=true;
+ document.getElementById('result').style.display='none';
+}
+</script>
+</body>
+</html>
